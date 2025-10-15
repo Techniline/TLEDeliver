@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 function required(name) {
   const v = process.env[name];
@@ -8,7 +8,7 @@ function required(name) {
   return v;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Basic CORS (optional)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -24,12 +24,11 @@ export default async function handler(req, res) {
     const SUPABASE_URL = required('SUPABASE_URL');
     const SERVICE_ROLE = required('SUPABASE_SERVICE_ROLE_KEY');
 
-    // Minimal log to confirm which project we’re hitting (safe)
     console.log('[deliveries] Using SUPABASE_URL:', SUPABASE_URL);
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Light-weight query first to prove connectivity
+    // Quick ping
     const { data: pingData, error: pingError } = await supabase
       .from('bookings')
       .select('id')
@@ -40,7 +39,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: `Supabase ping failed: ${pingError.message}` });
     }
 
-    // Real query (adjust columns to your schema)
+    // Real query
     const { data, error } = await supabase
       .from('bookings')
       .select('id, reference, customer, pickup, dropoff, window_from, window_to, status')
@@ -54,8 +53,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json(data ?? []);
   } catch (e) {
-    // This will catch missing envs or unexpected exceptions
     console.error('[deliveries] fatal:', e);
     return res.status(500).json({ error: e.message || 'Internal error' });
   }
-}
+};
