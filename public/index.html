@@ -1,4 +1,350 @@
 <!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>DeliveryFlow Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#131a2a; --muted:#8aa0c6; --text:#e8f0ff; --brand:#5ac8fa; --ok:#32d74b; --warn:#ffd60a; --bad:#ff453a; --accent:#7df9b8;
+      --border:#1f2a44;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background:linear-gradient(180deg, #0b1220 0%, #0b1220 60%, #0e1627 100%); color:var(--text);
+    }
+    header{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);background:rgba(19,26,42,.65);backdrop-filter: blur(6px); position:sticky; top:0; z-index:10}
+    header h1{font-size:18px;margin:0;display:flex;align-items:center;gap:10px}
+    header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--brand);display:inline-block;box-shadow:0 0 12px var(--brand)}
+    .row{display:grid;gap:18px;padding:18px 20px}
+    .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    @media (max-width:1000px){.grid-3{grid-template-columns:1fr}}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+    .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+    .kpi{background:#0e1627;border:1px solid var(--border);padding:14px;border-radius:12px}
+    .kpi h3{margin:0 0 6px 0;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .kpi .num{font-size:28px;font-weight:700}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    button,.btn{cursor:pointer;background:#0e2033;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:10px}
+    button:hover,.btn:hover{border-color:#2a3d66}
+    input,select{background:#0e1627;border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;outline:none}
+    small.muted{color:var(--muted)}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:10px;border-bottom:1px solid var(--border);vertical-align:top}
+    th{color:#a8bddf;text-align:left;font-weight:600}
+    tr:hover td{background:#0f1a30}
+    .status{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px}
+    .Pending{color:#fff;background:#2b2b2b}
+    .Assigned{color:#111;background:#5ac8fa}
+    .In-Progress{color:#111;background:#ffd60a}
+    .Delivered{color:#111;background:#32d74b}
+    .Cancelled{color:#111;background:#ffaba1}
+    .Picked-Up{color:#111;background:#c0f}
+    .pill{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:2px 8px;margin-left:6px;color:var(--muted);font-size:12px}
+    .list{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+    .card{border:1px solid var(--border);border-radius:12px;padding:12px;background:#0e1627}
+    .proofs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:10px}
+    .thumb{background:#0e2033;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+    .thumb img{width:100%;display:block}
+    .thumb .meta{padding:8px;font-size:12px;color:var(--muted)}
+    footer{padding:30px 20px;color:var(--muted)}
+    .ok{color:var(--ok)} .bad{color:var(--bad)}
+    .row .panel h2{margin:0 0 10px 0;font-size:16px}
+    .right{margin-left:auto}
+    .flex{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .hint{font-size:12px;color:var(--muted)}
+    .nowrap{white-space:nowrap}
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span class="dot"></span> DeliveryFlow</h1>
+    <div class="toolbar">
+      <button id="refreshAll">Refresh</button>
+      <span class="hint">API base: <code id="baseUrl"></code></span>
+      <span class="hint">Paste JWT for admin ops:</span>
+      <input id="token" placeholder="Bearer token (JWT)" size="48"/>
+      <button id="saveToken">Use Token</button>
+    </div>
+  </header>
+
+  <div class="row grid-3">
+    <section class="panel">
+      <h2>Dashboard</h2>
+      <div class="kpis">
+        <div class="kpi"><h3>Total Bookings</h3><div class="num" id="kpi-total">—</div></div>
+        <div class="kpi"><h3>Active Drivers</h3><div class="num" id="kpi-drivers">—</div></div>
+        <div class="kpi"><h3>By Status</h3><div id="kpi-status" class="num" style="font-size:16px">—</div></div>
+      </div>
+      <div class="flex" style="margin-top:10px">
+        <small class="muted">Tip: use the token box above to enable booking/assignment status updates & proof uploads.</small>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Drivers</h2>
+      <div id="drivers" class="list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Upload Proof (Signed URL)</h2>
+      <div class="flex">
+        <label>Booking:</label>
+        <select id="proofBooking"></select>
+      </div>
+      <div class="flex" style="margin-top:8px">
+        <input type="file" id="fileInput" accept="image/*,.pdf"/>
+        <button id="btnUpload">Upload</button>
+        <span id="uploadMsg" class="hint"></span>
+      </div>
+      <div class="hint" style="margin-top:8px">After upload, proof will appear in the “Proofs” section below (auto-refresh).</div>
+    </section>
+  </div>
+
+  <div class="row">
+    <section class="panel">
+      <div class="flex">
+        <h2 style="margin-right:auto">Deliveries</h2>
+        <button id="refreshDeliveries">Refresh</button>
+      </div>
+      <table id="deliveriesTbl">
+        <thead>
+          <tr>
+            <th>Ref</th><th>Customer</th><th>Pickup → Dropoff</th><th>Window</th><th>Status</th><th class="nowrap">Actions (admin)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <div class="row">
+    <section class="panel">
+      <div class="flex">
+        <h2>Proofs</h2>
+        <div class="right flex">
+          <label>Booking:</label>
+          <select id="proofsForBooking"></select>
+          <button id="refreshProofs">Load Proofs</button>
+        </div>
+      </div>
+      <div id="proofs" class="proofs"></div>
+    </section>
+  </div>
+
+  <footer class="row">
+    <small class="muted">© DeliveryFlow. API-backed dashboard using Supabase + Vercel. Built lightweight with plain HTML/JS.</small>
+  </footer>
+
+<script>
+(function(){
+  const base = location.origin;
+  const $ = (sel,root=document)=>root.querySelector(sel);
+  const $all = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
+
+  $("#baseUrl").textContent = base;
+
+  let token = localStorage.getItem("df_token") || "";
+  if(token) $("#token").value = token;
+
+  $("#saveToken").onclick = () => {
+    token = $("#token").value.trim();
+    localStorage.setItem("df_token", token);
+    toast("Token saved.");
+  };
+
+  $("#refreshAll").onclick = () => { loadAll(); };
+
+  function toast(msg, el = $("#uploadMsg")) {
+    el.textContent = msg;
+    setTimeout(()=>{ el.textContent = ""; }, 5000);
+  }
+
+  async function http(url, opts={}) {
+    const res = await fetch(url, opts);
+    if(!res.ok){
+      const t = await res.text().catch(()=>res.statusText);
+      throw new Error(`${res.status} ${res.statusText} — ${t}`);
+    }
+    const ct = res.headers.get("content-type") || "";
+    if(ct.includes("application/json")) return res.json();
+    return res.text();
+  }
+
+  function fmtTime(s){
+    if(!s) return "—";
+    try {
+      const d = new Date(s);
+      return d.toLocaleString();
+    } catch { return s; }
+  }
+
+  // ===== KPIs =====
+  async function loadKpis(){
+    const data = await http(`${base}/api/dashboard/stats`);
+    $("#kpi-total").textContent = data.totalBookings ?? "0";
+    $("#kpi-drivers").textContent = data.activeDrivers ?? "0";
+    const status = data.byStatus || {};
+    const parts = Object.entries(status).map(([k,v]) => `<span class="pill">${k}: ${v}</span>`).join(" ");
+    $("#kpi-status").innerHTML = parts || "—";
+  }
+
+  // ===== Drivers =====
+  async function loadDrivers(){
+    const data = await http(`${base}/api/drivers`);
+    const wrap = $("#drivers"); wrap.innerHTML = "";
+    data.forEach(d=>{
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:10px">
+          <div><strong>${d.full_name}</strong> <span class="pill">${d.license_no||"—"}</span></div>
+          <div class="muted">${d.phone||""}</div>
+        </div>
+      `;
+      wrap.appendChild(div);
+    });
+  }
+
+  // ===== Deliveries table =====
+  async function loadDeliveries(){
+    const data = await http(`${base}/api/deliveries`);
+    const tbody = $("#deliveriesTbl tbody");
+    tbody.innerHTML = "";
+    // populate booking select elements
+    const selA = $("#proofBooking"); const selB = $("#proofsForBooking");
+    selA.innerHTML = ""; selB.innerHTML = "";
+    data.forEach(b=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${b.reference||"—"}</strong></td>
+        <td>${b.customer||"—"}</td>
+        <td>${b.pickup||"—"} <span class="muted">→</span> ${b.dropoff||"—"}</td>
+        <td><div class="muted">${fmtTime(b.window_from)} – ${fmtTime(b.window_to)}</div></td>
+        <td><span class="status ${b.status||"Pending"}">${b.status||"Pending"}</span></td>
+        <td class="nowrap">
+          <button data-id="${b.id}" data-st="Assigned" class="btn-ub">Assign</button>
+          <button data-id="${b.id}" data-st="In-Progress" class="btn-ub">In-Progress</button>
+          <button data-id="${b.id}" data-st="Delivered" class="btn-ub">Delivered</button>
+          <button data-id="${b.id}" data-st="Cancelled" class="btn-ub">Cancel</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      // options for selects
+      const opt1 = new Option(`${b.reference} (${b.status})`, b.id);
+      const opt2 = new Option(`${b.reference} (${b.status})`, b.id);
+      selA.add(opt1); selB.add(opt2);
+    });
+
+    // status buttons
+    $all(".btn-ub").forEach(btn=>{
+      btn.onclick = async ()=>{
+        const jwt = token.trim();
+        if(!jwt) return alert("Add a JWT token first (top right).");
+        const booking_id = btn.getAttribute("data-id");
+        const status = btn.getAttribute("data-st");
+        try{
+          await http(`${base}/api/bookings/status`, {
+            method:"POST",
+            headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${jwt}` },
+            body: JSON.stringify({ booking_id, status })
+          });
+          toast(`Booking set to ${status}`, $("#uploadMsg"));
+          await loadKpis(); await loadDeliveries();
+        }catch(e){ alert(e.message); }
+      }
+    });
+  }
+
+  // ===== Proofs list & download =====
+  async function loadProofs(){
+    const booking_id = $("#proofsForBooking").value;
+    if(!booking_id) return;
+    const list = await http(`${base}/api/proofs?booking_id=${encodeURIComponent(booking_id)}`);
+    const box = $("#proofs"); box.innerHTML = "";
+
+    for(const p of list){
+      // ask backend for a short-lived signed download URL
+      const { url } = await http(`${base}/api/proofs/download`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ path: p.path, expires_in: 300 })
+      });
+      const wrap = document.createElement("div");
+      wrap.className = "thumb";
+      const isImg = (p.mime_type||"").startsWith("image/");
+      wrap.innerHTML = `
+        ${isImg ? `<img src="${url}" alt="proof"/>` : `<div class="meta"><a href="${url}" target="_blank">Download ${p.mime_type||"file"}</a></div>`}
+        <div class="meta">
+          <div>${p.path}</div>
+          <div>${new Date(p.created_at).toLocaleString()}</div>
+        </div>
+      `;
+      box.appendChild(wrap);
+    }
+  }
+  $("#refreshProofs").onclick = loadProofs;
+  $("#proofsForBooking").onchange = loadProofs;
+
+  // ===== Upload Proof (sign → PUT → record) =====
+  $("#btnUpload").onclick = async ()=>{
+    const jwt = token.trim();
+    if(!jwt) return alert("Add a JWT token first (top right).");
+    const booking_id = $("#proofBooking").value;
+    const fileEl = $("#fileInput");
+    if(!booking_id) return alert("Choose a Booking.");
+    if(!fileEl.files.length) return alert("Choose a file to upload.");
+    const file = fileEl.files[0];
+    const content_type = file.type || "application/octet-stream";
+
+    try{
+      // 1) sign
+      const sign = await http(`${base}/api/proofs/sign`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${jwt}` },
+        body: JSON.stringify({ booking_id, filename:file.name, content_type })
+      });
+      // 2) upload to storage
+      const putRes = await fetch(sign.signedUrl, {
+        method:"PUT",
+        headers:{ "Authorization":`Bearer ${sign.token}`, "Content-Type":content_type, "x-upsert":"true" },
+        body: file
+      });
+      if(!putRes.ok){ throw new Error(`Upload failed: ${putRes.status} ${await putRes.text()}`); }
+
+      // 3) record in DB
+      await http(`${base}/api/proofs/record`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${jwt}` },
+        body: JSON.stringify({ booking_id, assignment_id:null, path:sign.path, mime_type:content_type, notes:"Uploaded from dashboard" })
+      });
+
+      $("#fileInput").value = "";
+      toast("✅ Proof uploaded and recorded.");
+      // refresh proofs list selector to current booking
+      $("#proofsForBooking").value = booking_id;
+      await loadProofs();
+    }catch(e){ alert(e.message); }
+  };
+
+  async function loadAll(){
+    await Promise.all([loadKpis(), loadDrivers(), loadDeliveries()]);
+    // initialize selects for proofs
+    const sel = $("#proofsForBooking");
+    if(!sel.value && sel.options.length) sel.value = sel.options[0].value;
+    if(sel.options.length) await loadProofs();
+  }
+
+  // initial
+  $("#refreshDeliveries").onclick = loadDeliveries;
+  loadAll();
+})();
+</script>
+</body>
+</html><!doctype html>
 <html>
   <head><meta charset="utf-8"><title>DeliveryFlow – API test</title></head>
   <body>
