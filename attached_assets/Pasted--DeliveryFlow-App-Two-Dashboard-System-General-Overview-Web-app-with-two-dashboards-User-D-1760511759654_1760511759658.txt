@@ -1,0 +1,113 @@
+🚚 DeliveryFlow App – Two-Dashboard System
+🔹 General Overview
+
+Web app with two dashboards:
+
+User Dashboard (for creating delivery requests)
+
+Admin Dashboard (for approving/rejecting & managing slots)
+
+Built for Techniline/MusicMajlis internal delivery management.
+
+🧾 User Dashboard
+
+Branch Selector – dropdown (e.g., Al Shoala, MusicMajlis, Soundline Main, etc.)
+
+Form Fields:
+
+Delivery Order Number (Format: DO/*********)
+
+Customer Name
+
+Phone Number
+
+Delivery Address (with building, floor, apartment, landmarks)
+
+Package Information
+
+Has Customer Packages? → dropdown → “Yes / No”
+
+Payment Section
+
+Payment Done? → “Yes / No”
+
+If No, trigger popup comment box
+→ user enters notes like NCND, Cheque, etc.
+
+Order Details Section
+
+Cargo Box Tag → e.g. “FRAGILE”, “ELECTRONICS”, “HEAVY”
+
+Box Quantity → numeric field
+
+Delivery Slot Selector
+
+Pick a time slot between 9:30 AM – 7:00 PM (Mon–Sat)
+
+Sundays blocked automatically
+
+Submission
+
+Sends request to warehouse/admin for approval.
+
+Confirmation popup after submit.
+
+📋 User Dashboard – My Requests Table
+
+Displays all previous submissions:
+
+Driver Name
+
+Time Slot
+
+Status (Pending / Approved / Rejected / Delivered)
+
+DO Number
+
+Customer Name
+
+If rejected → show “Reason for Rejection” in a visible table section.
+
+🛠️ Admin Dashboard
+
+Calendar View
+
+Shows all approved & pending delivery slots within working hours.
+
+Ability to block specific time periods (maintenance, holidays, etc.).
+
+Pending Requests Table
+
+List of delivery requests with quick approve/reject controls.
+
+Reject Action → must trigger popup for “Reason” before submission (mandatory).
+
+Driver Assignment
+
+Option to assign specific drivers to approved deliveries.
+
+Export CSV Report
+
+Export delivery logs (filtered by date, branch, driver, etc.).
+
+Search/Filter Tools
+
+Filter by branch, status, driver, date range.
+
+🧠 Smart/Additional Suggestions
+
+Email/SMS notification on approval/rejection.
+
+Real-time status update via Supabase subscriptions.
+
+Role-based login (Admin, Warehouse Manager, Driver, Viewer).
+
+Dashboard summary cards:
+
+Today’s Deliveries
+
+Pending Approvals
+
+Blocked Slots
+
+Rejections
