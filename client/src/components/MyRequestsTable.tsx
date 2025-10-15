@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import {
   Table,
   TableBody,
@@ -97,8 +97,8 @@ export default function MyRequestsTable({ requests }: MyRequestsTableProps) {
                 </TableRow>
               ) : (
                 filteredRequests.map((request) => (
-                  <>
-                    <TableRow key={request.id} className="hover-elevate">
+                  <Fragment key={request.id}>
+                    <TableRow className="hover-elevate">
                       <TableCell>
                         {request.status === "Rejected" && request.rejectionReason && (
                           <Button
@@ -147,7 +147,7 @@ export default function MyRequestsTable({ requests }: MyRequestsTableProps) {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 ))
               )}
             </TableBody>
