@@ -1,6 +1,12 @@
 {
   "rewrites": [
-    { "source": "/login", "destination": "/index.html" },
-    { "source": "/dashboard", "destination": "/index.html" }
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+
+    { "source": "/assets/:path*", "destination": "/app/assets/:path*" },
+    { "source": "/login", "destination": "/app/index.html" },
+    { "source": "/dashboard", "destination": "/app/index.html" },
+
+    { "source": "/", "destination": "/app/index.html" },
+    { "source": "/:path*", "destination": "/app/index.html" }
   ]
 }
