@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabase";
+import { useNavigate } from "react-router-dom";
 
 type KPI = { totalBookings:number; activeDrivers:number; byStatus:Record<string,number>; };
 type Driver = { id:string; full_name:string; phone?:string; license_no?:string; };
@@ -15,7 +17,7 @@ type Proof = {
 const css = `
 :root{ --bg:#0b1220; --panel:#131a2a; --muted:#8aa0c6; --text:#e8f0ff; --brand:#5ac8fa; --ok:#32d74b; --warn:#ffd60a; --bad:#ff453a; --border:#1f2a44; }
 *{box-sizing:border-box} body{background:linear-gradient(180deg,#0b1220 0%,#0b1220 60%,#0e1627 100%);color:var(--text)}
-.wrap{padding:18px;max-width:1200px;margin:0 auto}
+.wrap{padding:18px;max-width:1200px;margin:0 auto;font-family:system-ui,Segoe UI,Roboto}
 .header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
 .hint{color:var(--muted);font-size:12px}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:16px}
@@ -53,7 +55,9 @@ function fmtTime(s?:string){ if(!s) return "—"; const d=new Date(s); return is
 
 export default function Dashboard(){
   const base = useApiBase();
-  const [token,setToken]=useState<string>(()=>localStorage.getItem("df_token")||"");
+  const nav = useNavigate();
+
+  const [jwt,setJwt] = useState<string>('');
   const [kpi,setKpi]=useState<KPI|null>(null);
   const [drivers,setDrivers]=useState<Driver[]>([]);
   const [bookings,setBookings]=useState<Booking[]>([]);
@@ -63,7 +67,22 @@ export default function Dashboard(){
   const [file,setFile]=useState<File|null>(null);
   const [msg,setMsg]=useState<string>("");
 
-  useEffect(()=>{ loadAll(); },[]);
+  useEffect(()=>{
+    // On mount, check session; if none, go to /login
+    (async ()=>{
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if(!token){ nav('/login'); return; }
+      setJwt(token);
+      await loadAll();
+      // keep token fresh on changes
+      supabase.auth.onAuthStateChange((_evt, session) => {
+        setJwt(session?.access_token || '');
+        if(!session) nav('/login');
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
 
   async function http<T=any>(url:string,opts:RequestInit={}):Promise<T>{
     const r = await fetch(url,opts);
@@ -88,35 +107,34 @@ export default function Dashboard(){
     setProofs(list);
   }
 
-  function saveToken(){ localStorage.setItem("df_token",token); setMsg("Token saved."); setTimeout(()=>setMsg(""),2500); }
-
   async function setBookingStatus(booking_id:string,status:Booking["status"]){
-    if(!token) return alert("Paste a JWT token first.");
     await http(`${base}/api/bookings/status`,{
-      method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+      method:"POST",
+      headers:{ "Content-Type":"application/json", Authorization:`Bearer ${jwt}` },
       body: JSON.stringify({ booking_id, status })
     });
     await loadAll();
   }
 
   async function uploadProof(){
-    if(!token) return alert("Paste a JWT token first.");
     if(!uploadBookingId) return alert("Choose a booking.");
     if(!file) return alert("Choose a file.");
     const content_type = file.type || "application/octet-stream";
 
     const sign = await http<{signedUrl:string; token:string; path:string}>(`${base}/api/proofs/sign`,{
-      method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+      method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${jwt}` },
       body: JSON.stringify({ booking_id: uploadBookingId, filename: file.name, content_type })
     });
 
     const putRes = await fetch(sign.signedUrl, {
-      method:"PUT", headers:{ Authorization:`Bearer ${sign.token}`, "Content-Type":content_type, "x-upsert":"true" }, body:file
+      method:"PUT",
+      headers:{ Authorization:`Bearer ${sign.token}`, "Content-Type":content_type, "x-upsert":"true" },
+      body:file
     });
     if(!putRes.ok) throw new Error(`Upload failed: ${putRes.status} ${await putRes.text()}`);
 
     await http(`${base}/api/proofs/record`,{
-      method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+      method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${jwt}` },
       body: JSON.stringify({ booking_id: uploadBookingId, assignment_id:null, path:sign.path, mime_type:content_type, notes:"Uploaded from React dashboard" })
     });
 
@@ -125,16 +143,20 @@ export default function Dashboard(){
     setTimeout(()=>setMsg(""),4000);
   }
 
+  async function signOut(){
+    await supabase.auth.signOut();
+    setJwt('');
+    nav('/login');
+  }
+
   return (
     <div className="wrap">
       <style>{css}</style>
       <div className="header">
         <h2 style={{margin:0}}>DeliveryFlow Dashboard</h2>
         <div className="toolbar">
-          <span className="hint">Base: {base}</span>
-          <input value={token} onChange={e=>setToken(e.target.value)} placeholder="Paste JWT (admin)" size={40}/>
-          <button onClick={saveToken}>Use Token</button>
-          {msg && <span className="hint">{msg}</span>}
+          <span className="hint">Signed in</span>
+          <button onClick={signOut}>Sign out</button>
           <button onClick={loadAll}>Refresh</button>
         </div>
       </div>
