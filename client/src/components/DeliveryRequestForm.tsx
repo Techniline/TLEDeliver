@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,9 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import PaymentCommentModal from "./PaymentCommentModal";
 import ConfirmationModal from "./ConfirmationModal";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import type { InsertDelivery } from "@shared/schema";
 
 const branches = [
   "Al Shoala",
@@ -39,6 +43,7 @@ const timeSlots = [
 ];
 
 export default function DeliveryRequestForm() {
+  const { toast } = useToast();
   const [branch, setBranch] = useState("");
   const [doNumber, setDoNumber] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -53,6 +58,41 @@ export default function DeliveryRequestForm() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
+  const createDeliveryMutation = useMutation({
+    mutationFn: async (data: InsertDelivery) => {
+      return await apiRequest("/api/deliveries", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deliveries"] });
+      setShowConfirmation(true);
+      resetForm();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to submit delivery request. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetForm = () => {
+    setBranch("");
+    setDoNumber("");
+    setCustomerName("");
+    setPhone("");
+    setAddress("");
+    setHasPackages("No");
+    setPaymentDone("Yes");
+    setPaymentComment("");
+    setCargoTag("");
+    setBoxQuantity("");
+    setTimeSlot("");
+  };
+
   const handlePaymentChange = (value: string) => {
     setPaymentDone(value);
     if (value === "No") {
@@ -64,20 +104,22 @@ export default function DeliveryRequestForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted:", {
-      branch,
+    
+    const deliveryData: InsertDelivery = {
       doNumber,
+      branch,
       customerName,
       phone,
       address,
-      hasPackages,
-      paymentDone,
-      paymentComment,
+      hasPackages: hasPackages === "Yes",
+      paymentDone: paymentDone === "Yes",
+      paymentComment: paymentComment || null,
       cargoTag,
-      boxQuantity,
+      boxQuantity: parseInt(boxQuantity),
       timeSlot,
-    });
-    setShowConfirmation(true);
+    };
+
+    createDeliveryMutation.mutate(deliveryData);
   };
 
   return (
@@ -277,8 +319,14 @@ export default function DeliveryRequestForm() {
           </CardContent>
         </Card>
 
-        <Button type="submit" size="lg" className="w-full" data-testid="button-submit">
-          Submit Delivery Request
+        <Button 
+          type="submit" 
+          size="lg" 
+          className="w-full" 
+          data-testid="button-submit"
+          disabled={createDeliveryMutation.isPending}
+        >
+          {createDeliveryMutation.isPending ? "Submitting..." : "Submit Delivery Request"}
         </Button>
       </form>
 

@@ -1,46 +1,16 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DeliveryRequestForm from "@/components/DeliveryRequestForm";
 import MyRequestsTable from "@/components/MyRequestsTable";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Truck } from "lucide-react";
+import type { Delivery } from "@shared/schema";
 
 export default function UserDashboard() {
-  const mockRequests = [
-    {
-      id: "1",
-      doNumber: "DO/12345678",
-      customerName: "Ahmed Al-Mansoori",
-      driverName: "Mohammed Ali",
-      timeSlot: "10:30 AM - 11:30 AM",
-      status: "Delivered" as const,
-    },
-    {
-      id: "2",
-      doNumber: "DO/87654321",
-      customerName: "Sara Ibrahim",
-      driverName: "Khalid Hassan",
-      timeSlot: "2:30 PM - 3:30 PM",
-      status: "Approved" as const,
-    },
-    {
-      id: "3",
-      doNumber: "DO/11223344",
-      customerName: "Omar Abdullah",
-      driverName: "",
-      timeSlot: "4:30 PM - 5:30 PM",
-      status: "Pending" as const,
-    },
-    {
-      id: "4",
-      doNumber: "DO/99887766",
-      customerName: "Fatima Rashid",
-      driverName: "",
-      timeSlot: "11:30 AM - 12:30 PM",
-      status: "Rejected" as const,
-      rejectionReason: "Incomplete delivery address - missing apartment number and floor details",
-    },
-  ];
+  const { data: deliveries = [], isLoading } = useQuery<Delivery[]>({
+    queryKey: ["/api/deliveries"],
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,7 +47,13 @@ export default function UserDashboard() {
           </TabsContent>
 
           <TabsContent value="requests" className="space-y-6">
-            <MyRequestsTable requests={mockRequests} />
+            {isLoading ? (
+              <div className="text-center py-12 text-muted-foreground">
+                Loading requests...
+              </div>
+            ) : (
+              <MyRequestsTable requests={deliveries} />
+            )}
           </TabsContent>
         </Tabs>
       </main>

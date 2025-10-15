@@ -20,10 +20,10 @@ interface DeliveryRequest {
   id: string;
   doNumber: string;
   customerName: string;
-  driverName: string;
+  driverName: string | null;
   timeSlot: string;
   status: Status;
-  rejectionReason?: string;
+  rejectionReason?: string | null;
 }
 
 interface MyRequestsTableProps {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +19,9 @@ import ExportCSVButton from "@/components/ExportCSVButton";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Calendar, ClipboardList, FileText, Settings, Truck } from "lucide-react";
 import { useLocation } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import type { Delivery, Driver } from "@shared/schema";
 
 function AppSidebar() {
   const [location, setLocation] = useLocation();
@@ -64,73 +68,86 @@ function AppSidebar() {
 
 export default function AdminDashboard() {
   const [location] = useLocation();
+  const { toast } = useToast();
 
-  const mockSummary = {
-    todaysDeliveries: 24,
-    pendingApprovals: 8,
-    blockedSlots: 3,
-    rejections: 5,
-  };
+  const { data: stats } = useQuery({
+    queryKey: ["/api/dashboard/stats"],
+  });
 
-  const mockSlots = [
-    {
-      time: "10:30 AM",
+  const { data: deliveries = [] } = useQuery<Delivery[]>({
+    queryKey: ["/api/deliveries"],
+  });
+
+  const { data: drivers = [] } = useQuery<Driver[]>({
+    queryKey: ["/api/drivers"],
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/deliveries/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "Approved" }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "Request Approved",
+        description: "Delivery request has been approved successfully.",
+      });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      return await apiRequest(`/api/deliveries/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "Rejected", rejectionReason: reason }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "Request Rejected",
+        description: "Delivery request has been rejected.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const assignDriverMutation = useMutation({
+    mutationFn: async ({ id, driverName }: { id: string; driverName: string }) => {
+      return await apiRequest(`/api/deliveries/${id}/driver`, {
+        method: "PATCH",
+        body: JSON.stringify({ driverName }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deliveries"] });
+      toast({
+        title: "Driver Assigned",
+        description: "Driver has been assigned to the delivery.",
+      });
+    },
+  });
+
+  const mockSlots = deliveries
+    .filter((d) => d.status === "Approved" || d.status === "Pending")
+    .slice(0, 3)
+    .map((d) => ({
+      time: d.timeSlot.split(" - ")[0],
       events: [
         {
-          id: "1",
-          doNumber: "DO/12345678",
-          customerName: "Ahmed Al-Mansoori",
-          status: "Approved" as const,
-          driverName: "Mohammed Ali",
+          id: d.id,
+          doNumber: d.doNumber,
+          customerName: d.customerName,
+          status: d.status as "Pending" | "Approved" | "Rejected" | "Delivered",
+          driverName: d.driverName || undefined,
         },
       ],
-    },
-    {
-      time: "2:30 PM",
-      events: [],
-    },
-    {
-      time: "4:30 PM",
-      events: [
-        {
-          id: "2",
-          doNumber: "DO/87654321",
-          customerName: "Sara Ibrahim",
-          status: "Pending" as const,
-        },
-      ],
-    },
-  ];
-
-  const mockRequests = [
-    {
-      id: "1",
-      doNumber: "DO/12345678",
-      customerName: "Ahmed Al-Mansoori",
-      phone: "+971 50 123 4567",
-      address: "Building 23, Floor 5, Apt 502, Al Barsha",
-      cargoTag: "ELECTRONICS" as const,
-      boxQuantity: 2,
-      timeSlot: "10:30 AM - 11:30 AM",
-      status: "Pending" as const,
-      branch: "Al Shoala",
-    },
-    {
-      id: "2",
-      doNumber: "DO/87654321",
-      customerName: "Sara Ibrahim",
-      phone: "+971 55 987 6543",
-      address: "Villa 15, Street 4, Dubai Marina",
-      cargoTag: "FRAGILE" as const,
-      boxQuantity: 1,
-      timeSlot: "2:30 PM - 3:30 PM",
-      status: "Approved" as const,
-      branch: "MusicMajlis",
-      driverName: "Mohammed Ali",
-    },
-  ];
-
-  const mockDrivers = ["Mohammed Ali", "Khalid Hassan", "Ahmed Nasser", "Omar Rashid"];
+    }));
 
   const style = {
     "--sidebar-width": "16rem",
@@ -160,13 +177,15 @@ export default function AdminDashboard() {
                       Manage delivery requests and monitor operations
                     </p>
                   </div>
-                  <DashboardSummaryCards data={mockSummary} />
+                  {stats && <DashboardSummaryCards data={stats} />}
                   <PendingRequestsTable
-                    requests={mockRequests}
-                    drivers={mockDrivers}
-                    onApprove={(id) => console.log("Approved:", id)}
-                    onReject={(id, reason) => console.log("Rejected:", id, reason)}
-                    onAssignDriver={(id, driver) => console.log("Assigned:", id, driver)}
+                    requests={deliveries}
+                    drivers={drivers.map((d) => d.name)}
+                    onApprove={(id) => approveMutation.mutate(id)}
+                    onReject={(id, reason) => rejectMutation.mutate({ id, reason })}
+                    onAssignDriver={(id, driverName) =>
+                      assignDriverMutation.mutate({ id, driverName })
+                    }
                   />
                 </>
               )}
@@ -195,11 +214,13 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                   <PendingRequestsTable
-                    requests={mockRequests}
-                    drivers={mockDrivers}
-                    onApprove={(id) => console.log("Approved:", id)}
-                    onReject={(id, reason) => console.log("Rejected:", id, reason)}
-                    onAssignDriver={(id, driver) => console.log("Assigned:", id, driver)}
+                    requests={deliveries}
+                    drivers={drivers.map((d) => d.name)}
+                    onApprove={(id) => approveMutation.mutate(id)}
+                    onReject={(id, reason) => rejectMutation.mutate({ id, reason })}
+                    onAssignDriver={(id, driverName) =>
+                      assignDriverMutation.mutate({ id, driverName })
+                    }
                   />
                 </>
               )}
